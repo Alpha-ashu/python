@@ -1,0 +1,19 @@
+def extract_value(data, keys, trim_prefix=None):
+    """Extracts a value from a nested JSON object using a list of keys.
+    If trim_prefix is provided, it removes the first N characters from the value.
+    """
+    print(f"\n🔍 Extracting value for path: {'/'.join(keys)}")
+
+    for key in keys:
+        if isinstance(data, dict) and key in data:
+            data = data[key]  # Move deeper into the JSON structure
+        else:
+            print(f"⚠️ Warning: Key '{key}' not found in JSON structure.")
+            return None  # Return None if the key doesn't exist
+    
+    if isinstance(data, str) and trim_prefix:
+        print(f"✂️ Trimming first {trim_prefix} characters from: {data}")
+        data = data[trim_prefix:]  # Remove first N characters
+    
+    print(f"✅ Extracted Value: {data}")
+    return data  # Return the final extracted value
