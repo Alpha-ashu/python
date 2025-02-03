@@ -1,28 +1,106 @@
+import os
+import json
+import pandas as pd
+from openpyxl import Workbook
+
+def read_mapping(file_path):
+    """Reads mapping from an Excel file."""
+    try:
+        df = pd.read_excel(file_path, sheet_name=None)
+        unique_identifiers = dict(zip(df['Sheet1'].iloc[:, 0], df['Sheet1'].iloc[:, 1]))
+        comparison_mappings = dict(zip(df['Sheet2'].iloc[:, 0], df['Sheet2'].iloc[:, 1]))
+        print("Mapping loaded successfully")
+        return unique_identifiers, comparison_mappings
+    except Exception as e:
+        print(f"Error reading mapping file: {e}")
+        return {}, {}
+
+def load_json(file_path):
+    """Loads a JSON file and validates its content."""
+    print(f"\n📂 Attempting to load JSON: {file_path}")
+    
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        print(f"❌ Error: File not found - {file_path}")
+        return {}
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+
+        # Check if JSON is empty
+        if not data:
+            print(f"⚠️ Warning: JSON file is empty - {file_path}")
+            return {}
+
+        print(f"✅ JSON loaded successfully: {file_path}")
+        print(f"📝 JSON Preview (First 200 characters): {str(data)[:200]} ...")  # Print first 200 chars for debugging
+        return data
+
+    except json.JSONDecodeError as e:
+        print(f"❌ Error: Invalid JSON format in {file_path} - {e}")
+        return {}
+
+    except Exception as e:
+        print(f"❌ Unexpected error while loading {file_path}: {e}")
+        return {}
+
+def extract_value(data, keys):
+    """Extracts a value from a nested JSON object using a list of keys."""
+    for key in keys:
+        if isinstance(data, dict) and key in data:
+            data = data[key]
+        else:
+            return None
+    return data
+
+def compare_json(legacy_json, payer_json, mappings):
+    """Compares values between legacy and payer JSONs using mappings."""
+    records = []
+    for old_path, new_path in mappings.items():
+        legacy_value = extract_value(legacy_json, old_path.split('/'))
+        payer_value = extract_value(payer_json, new_path.split('/'))
+        print(f"Comparing {old_path} -> {legacy_value} with {new_path} -> {payer_value}")
+        match_status = "Matched" if legacy_value == payer_value else "Not Matched"
+        records.append([old_path, new_path, legacy_value, payer_value, match_status])
+    return records
+
+def generate_report(output_path, results):
+    """Generates an Excel report of the comparison results."""
+    wb = Workbook()
+    summary_ws = wb.active
+    summary_ws.title = "Summary"
+    summary_ws.append(["Claim Folder", "Matched Records"])
+    
+    for claim_folder, data in results.items():
+        summary_ws.append([claim_folder, len(data)])
+        ws = wb.create_sheet(title=claim_folder)
+        ws.append(["Legacy Path", "Payer Path", "Legacy Value", "Payer Value", "Match Status"])
+        for record in data:
+            ws.append(record)
+    
+    wb.save(output_path)
+    print(f"Report generated successfully: {output_path}")
+
+def process_claims(legacy_file, payer_file, mapping_file, output_excel):
+    """Processes claim JSON files and generates a comparison report."""
+    print("Starting claim processing...")
+    unique_ids, mappings = read_mapping(mapping_file)
+    results = {}
+
+    legacy_json = load_json(legacy_file)
+    payer_json = load_json(payer_file)
+    
+    if legacy_json and payer_json:
+        results["Comparison"] = compare_json(legacy_json, payer_json, mappings)
+        generate_report(output_excel, results)
+    else:
+        print("Error: One or both JSON files are empty or invalid.")
+
 if __name__ == "__main__":
-    # Define file paths
     legacy_response_path = "path/to/your/Legacy.json"   # Provide actual path
     payer_response_path = "path/to/your/Payer.json"     # Provide actual path
     mapping_file_path = "Data/mapping.xlsx"
     output_excel_path = "Data/output.xlsx"
-
-    # Debugging step: Print paths before processing
-    print("\n🔹 File Paths:")
-    print(f"📂 Legacy Response JSON: {legacy_response_path}")
-    print(f"📂 Payer Response JSON: {payer_response_path}")
-    print(f"📂 Mapping Excel File: {mapping_file_path}")
-    print(f"📂 Output Excel Report: {output_excel_path}")
-
-    # Check if files exist before running process
-    missing_files = []
-    for file_path in [legacy_response_path, payer_response_path, mapping_file_path]:
-        if not os.path.exists(file_path):
-            missing_files.append(file_path)
     
-    if missing_files:
-        print("\n❌ Error: The following files are missing:")
-        for file in missing_files:
-            print(f"   - {file}")
-        print("Please check the file paths and try again.\n")
-    else:
-        print("\n✅ All files found. Proceeding with claim processing...\n")
-        process_claims(legacy_response_path, payer_response_path, mapping_file_path, output_excel_path)
+    process_claims(legacy_response_path, payer_response_path, mapping_file_path, output_excel_path)
