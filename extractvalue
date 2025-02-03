@@ -18,7 +18,6 @@ def extract_value(data, keys, trim_prefix=None):
     print(f"✅ Extracted Value: {data}")
     return data  # Return the final extracted value
 
-
 def find_matching_legacy_record(payer_value, legacy_data, legacy_path):
     """Searches for a matching payer value in the Legacy JSON using a given path."""
     print(f"\n🔍 Searching for Payer Value '{payer_value}' in Legacy JSON at path: {legacy_path}")
