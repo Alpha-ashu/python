@@ -1,0 +1,28 @@
+if __name__ == "__main__":
+    # Define file paths
+    legacy_response_path = "path/to/your/Legacy.json"   # Provide actual path
+    payer_response_path = "path/to/your/Payer.json"     # Provide actual path
+    mapping_file_path = "Data/mapping.xlsx"
+    output_excel_path = "Data/output.xlsx"
+
+    # Debugging step: Print paths before processing
+    print("\n🔹 File Paths:")
+    print(f"📂 Legacy Response JSON: {legacy_response_path}")
+    print(f"📂 Payer Response JSON: {payer_response_path}")
+    print(f"📂 Mapping Excel File: {mapping_file_path}")
+    print(f"📂 Output Excel Report: {output_excel_path}")
+
+    # Check if files exist before running process
+    missing_files = []
+    for file_path in [legacy_response_path, payer_response_path, mapping_file_path]:
+        if not os.path.exists(file_path):
+            missing_files.append(file_path)
+    
+    if missing_files:
+        print("\n❌ Error: The following files are missing:")
+        for file in missing_files:
+            print(f"   - {file}")
+        print("Please check the file paths and try again.\n")
+    else:
+        print("\n✅ All files found. Proceeding with claim processing...\n")
+        process_claims(legacy_response_path, payer_response_path, mapping_file_path, output_excel_path)
