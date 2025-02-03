@@ -1,0 +1,93 @@
+Feature: Send API requests dynamically and save responses
+
+  Background:
+    * def csvData = read('classpath:data.csv')
+    * def responses = []
+
+    # Function to loop through data and send requests
+    * def sendRequest =
+    """
+    function(data) {
+      karate.forEach(data, function(row) {
+        var result = karate.call('sendRequest.feature', row);
+        responses.push(result);  // Save the response dynamically
+      });
+    }
+    """
+
+  Scenario: Read CSV, send requests, and store responses
+    * eval sendRequest(csvData)
+
+    # Save responses to a file
+    * def writeFile =
+    """
+    function(responses) {
+      var file = Java.type('java.io.File');
+      var fileWriter = Java.type('java.io.FileWriter');
+      var objectMapper = Java.type('com.fasterxml.jackson.databind.ObjectMapper');
+      var mapper = new objectMapper();
+      var json = mapper.writeValueAsString(responses);
+
+      var outputFile = new file('responses.json');
+      var writer = new fileWriter(outputFile);
+      writer.write(json);
+      writer.close();
+    }
+    """
+    
+    * eval writeFile(responses)
+Step 2: Modify the Sub-Feature (sendRequest.feature)
+This feature:
+
+Sends an API request.
+Returns the response to be saved in responses.json.
+gherkin
+Copy
+Edit
+Feature: Send API request and return response
+
+  Scenario: Send API request
+    Given url 'https://api.example.com/data'
+    And request { memberId: '#(memberId)', clientIdentifier: '#(clientIdentifier)' }
+    When method POST
+    Then status 200
+
+    # Store response as JSON
+    * def responseData = { "memberId": memberId, "clientIdentifier": clientIdentifier, "response": response }
+    * karate.set('responseData', responseData)
+Step 3: Output File (responses.json)
+After running the feature, responses.json will store all API responses dynamically:
+
+json
+Copy
+Edit
+[
+  {
+    "memberId": "123",
+    "clientIdentifier": "ABC",
+    "response": {
+      "status": "success",
+      "data": { "id": "1", "message": "Processed" }
+    }
+  },
+  {
+    "memberId": "456",
+    "clientIdentifier": "DEF",
+    "response": {
+      "status": "success",
+      "data": { "id": "2", "message": "Processed" }
+    }
+  }
+]
+How This Works
+Reads the CSV file (data.csv).
+Loops through each row and calls sendRequest.feature.
+Captures each response and stores it in responses.json.
+Writes all responses to a file dynamically.
+Advantages
+✅ Stores responses dynamically for each request.
+✅ No manual saving required – Karate does it automatically.
+✅ Responses are structured and reusable for further validation or reporting.
+✅ Works with large datasets efficiently.
+
+Would you like to validate the saved responses or add reporting in Excel? 🚀
