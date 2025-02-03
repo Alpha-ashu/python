@@ -1,0 +1,29 @@
+def load_json(file_path):
+    """Loads a JSON file and validates its content."""
+    print(f"\n📂 Attempting to load JSON: {file_path}")
+    
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        print(f"❌ Error: File not found - {file_path}")
+        return {}
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+
+        # Check if JSON is empty
+        if not data:
+            print(f"⚠️ Warning: JSON file is empty - {file_path}")
+            return {}
+
+        print(f"✅ JSON loaded successfully: {file_path}")
+        print(f"📝 JSON Preview (First 200 characters): {str(data)[:200]} ...")  # Print first 200 chars for debugging
+        return data
+
+    except json.JSONDecodeError as e:
+        print(f"❌ Error: Invalid JSON format in {file_path} - {e}")
+        return {}
+
+    except Exception as e:
+        print(f"❌ Unexpected error while loading {file_path}: {e}")
+        return {}
