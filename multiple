@@ -39,22 +39,28 @@ Feature: Send API requests dynamically and save responses
 Step 2: Modify the Sub-Feature (sendRequest.feature)
 This feature:
 
-Sends an API request.
-Returns the response to be saved in responses.json.
-gherkin
-Copy
-Edit
-Feature: Send API request and return response
+Feature: Send API request for each CSV row
 
-  Scenario: Send API request
+  Scenario: Send API request using dynamic values
+    # The values are received from the main feature
+    * print 'Processing request for memberId:', memberId, 'clientIdentifier:', clientIdentifier
+
     Given url 'https://api.example.com/data'
-    And request { memberId: '#(memberId)', clientIdentifier: '#(clientIdentifier)' }
+    And request { 
+      "memberId": "#(memberId)", 
+      "clientIdentifier": "#(clientIdentifier)" 
+    }
     When method POST
     Then status 200
 
-    # Store response as JSON
-    * def responseData = { "memberId": memberId, "clientIdentifier": clientIdentifier, "response": response }
+    # Store response for further use
+    * def responseData = { 
+        "memberId": memberId, 
+        "clientIdentifier": clientIdentifier, 
+        "response": response 
+      }
     * karate.set('responseData', responseData)
+
 Step 3: Output File (responses.json)
 After running the feature, responses.json will store all API responses dynamically:
 
