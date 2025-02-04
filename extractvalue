@@ -1,25 +1,38 @@
 def extract_value(data, keys, trim_prefix=None, sheet_name=None, column_name=None, original_value=None):
     """Extracts a value from a nested JSON object using a list of keys.
-    If trim_prefix is provided, it removes the first N characters from the value.
-    Also logs which sheet and column from the mapping document was used.
+    Handles array notation dynamically and logs which sheet and column were used.
     """
     print(f"\n🔍 Extracting value for path: {'/'.join(keys)}")
     if sheet_name and column_name and original_value:
         print(f"📄 Using mapping from sheet: {sheet_name}, column: {column_name}, original value: {original_value}")
 
     for key in keys:
-        if isinstance(data, dict) and key in data:
+        if isinstance(data, list):
+            # Handle array notation: [*] -> extract all, or numbered index -> extract specific item
+            if key == "[*]":
+                return [extract_value(item, keys[keys.index(key) + 1:], trim_prefix) for item in data]
+            elif key.isdigit():  # If key is a number, treat it as an index
+                index = int(key)
+                if 0 <= index < len(data):
+                    data = data[index]
+                else:
+                    print(f"⚠️ Warning: Index {index} out of range.")
+                    return None
+            else:
+                print(f"⚠️ Warning: Unexpected list key '{key}' for array.")
+                return None
+        elif isinstance(data, dict) and key in data:
             data = data[key]  # Move deeper into the JSON structure
         else:
             print(f"⚠️ Warning: Key '{key}' not found in JSON structure.")
             return None  # Return None if the key doesn't exist
-    
+
     if isinstance(data, str) and trim_prefix:
         print(f"✂️ Trimming first {trim_prefix} characters from: {data}")
         data = data[trim_prefix:]  # Remove first N characters
-    
+
     print(f"✅ Extracted Value: {data}")
-    return data  # Return the final extracted value
+    return data  # Return final extracted value
 
 def find_matching_legacy_record(payer_value, legacy_data, legacy_path):
     """Searches for a matching payer value in the Legacy JSON using a given path."""
