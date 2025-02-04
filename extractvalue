@@ -1,8 +1,11 @@
-def extract_value(data, keys, trim_prefix=None):
+def extract_value(data, keys, trim_prefix=None, sheet_name=None, column_name=None, original_value=None):
     """Extracts a value from a nested JSON object using a list of keys.
     If trim_prefix is provided, it removes the first N characters from the value.
+    Also logs which sheet and column from the mapping document was used.
     """
     print(f"\n🔍 Extracting value for path: {'/'.join(keys)}")
+    if sheet_name and column_name and original_value:
+        print(f"📄 Using mapping from sheet: {sheet_name}, column: {column_name}, original value: {original_value}")
 
     for key in keys:
         if isinstance(data, dict) and key in data:
