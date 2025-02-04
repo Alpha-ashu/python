@@ -1,0 +1,18 @@
+def process_claims(payer_json, legacy_json):
+    """Processes claims by extracting payer claim number, trimming it, and finding a match in the legacy JSON."""
+    
+    # Step 1: Extract and trim the payer claim number
+    payer_claim_number = extract_value(payer_json, "data/claimIdentifiers/payerClaimControlNumber".split('/'), trim_prefix=3)
+
+    # Step 2: Define the path to search in the legacy JSON
+    legacy_search_path = "searchResult/searchOutput/claims"
+
+    # Step 3: Search for a matching record in the legacy JSON
+    matching_claim = find_matching_legacy_record(payer_claim_number, legacy_json, legacy_search_path)
+
+    if matching_claim:
+        print("\n✅ Final Matching Claim Details:", matching_claim)
+        return matching_claim  # Returning the matched claim for further processing
+    else:
+        print("\n❌ No matching claim found in Legacy JSON.")
+        return None  # Return None if no match is found
