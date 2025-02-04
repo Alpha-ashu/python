@@ -1,0 +1,125 @@
+import os
+import json
+import pandas as pd
+from openpyxl import load_workbook
+
+class Status:
+    def __init__(self):
+        self.Length = 0
+        self.StatusCode = ""
+        self.Payer = None
+
+def read_mapping(file_path):
+    if not os.path.exists(file_path):
+        print(f"❌ Error: Mapping file not found -> {file_path}")
+        return {}
+    
+    mapping = {}
+    wb = load_workbook(file_path)
+    sheet = wb.active
+    for row in sheet.iter_rows(min_row=2, values_only=True):
+        if row[0] and row[1]:
+            mapping[row[0]] = row[1]
+    
+    if not mapping:
+        print("❌ Error: Mapping file is empty or invalid.")
+    
+    return mapping
+
+def find_node_value(json_node, keys, level=0):
+    if level >= len(keys):
+        return json_node if isinstance(json_node, str) else None
+    
+    key = keys[level]
+    if key.endswith("[*]"):
+        array_key = key[:-3]
+        array_node = json_node.get(array_key, [])
+        if isinstance(array_node, list) and array_node:
+            return find_node_value(array_node[0], keys, level + 1)
+        else:
+            return None
+    else:
+        return find_node_value(json_node.get(key, {}), keys, level + 1)
+
+def compare_using_mapping(legacy_record, payer_record, mapping):
+    status = Status()
+    matched_count = 0
+    total_keys = len(mapping)
+    payer_value = None
+    
+    for old_path, new_path in mapping.items():
+        old_value = find_node_value(legacy_record, old_path.split("/"))
+        new_value = find_node_value(payer_record, new_path.split("/"))
+        
+        if old_value and old_value == new_value:
+            matched_count += 1
+            if new_path == "claimIdentifiers/patientAccountNumber":
+                payer_value = old_value or new_value
+    
+    status.Length = total_keys
+    status.StatusCode = "MATCHED" if matched_count == total_keys else f"PARTIAL_MATCH ({matched_count}/{total_keys})"
+    status.Payer = payer_value
+    return status
+
+def create_json_file(payer_id, file_name, json_content):
+    base_directory = "target/filteredRecord/"
+    payer_directory = os.path.join(base_directory, str(payer_id))  # Ensure payer_id is a string
+    os.makedirs(payer_directory, exist_ok=True)  # Ensure the directory exists
+    
+    file_path = os.path.join(payer_directory, file_name)
+
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(json_content, f, indent=4)
+        print(f"✅ File successfully created: {file_path}")
+    except Exception as e:
+        print(f"❌ Error creating file {file_path}: {e}")
+
+def main():
+    # Use raw string literals to avoid path issues
+    mapping_file_path = r"C:\Users\USER\Downloads\JsonCanonical\src\python\mappingForFilteringFiles.xlsx"
+    legacy_file_path = r"C:\Users\USER\Downloads\JsonCanonical\src\python\response1.json"
+    payer_file_path = r"C:\Users\USER\Downloads\JsonCanonical\src\python\response2.json"
+    
+    print(f"🔍 Checking file paths:\nMapping File: {mapping_file_path}\nLegacy File: {legacy_file_path}\nPayer File: {payer_file_path}")
+    
+    # Read mapping file
+    mapping = read_mapping(mapping_file_path)
+    if not mapping:
+        print("❌ Error: Mapping file is empty or invalid.")
+        return
+    
+    # Check if JSON files exist
+    if not os.path.exists(legacy_file_path) or not os.path.exists(payer_file_path):
+        print("❌ Error: One or more JSON files are missing.")
+        return
+    
+    # Load JSON data
+    with open(legacy_file_path, "r", encoding="utf-8") as f:
+        legacy_response = json.load(f)
+    with open(payer_file_path, "r", encoding="utf-8") as f:
+        payer_response = json.load(f)
+    
+    legacy_records = legacy_response.get("searchResult", {}).get("searchOutput", {}).get("claims", [])
+    payer_records = payer_response.get("data", [])
+
+    print(f"📌 Found {len(legacy_records)} legacy records and {len(payer_records)} payer records.")
+
+    # Process each record and match
+    for legacy_record in legacy_records:
+        for payer_record in payer_records:
+            status = compare_using_mapping(legacy_record, payer_record, mapping)
+            print(f"🧐 Comparison result: {status.StatusCode}")
+
+            if status.StatusCode == "MATCHED":
+                print(f"✅ Match found! Creating JSON files for Payer ID: {status.Payer}")
+
+                final_response1 = {"searchResult": {"searchOutput": {"claims": [legacy_record]}}}
+                final_response2 = {"data": [payer_record]}
+                
+                create_json_file(status.Payer, f"Legacy_{status.Payer}.json", final_response1)
+                create_json_file(status.Payer, f"Payer_{status.Payer}.json", final_response2)
+
+if __name__ == "__main__":
+    main()
+
