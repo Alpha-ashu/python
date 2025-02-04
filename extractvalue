@@ -38,3 +38,18 @@ def find_matching_legacy_record(payer_value, legacy_data, legacy_path):
 
     print("❌ No Match Found in Legacy JSON.")
     return None  # Return None if no match is found
+
+def compare_claim_data(matching_claim, payer_data, mapping):
+    """Compares data fields between a matched legacy claim and payer claim based on mapping."""
+    print("\n🔍 Starting claim data comparison...")
+    comparison_results = []
+
+    for legacy_path, payer_path in mapping.items():
+        legacy_value = extract_value(matching_claim, legacy_path.split('/'))
+        payer_value = extract_value(payer_data, payer_path.split('/'))
+        match_status = "Matched" if legacy_value == payer_value else "Not Matched"
+        
+        print(f"📌 Comparing: {legacy_path} ({legacy_value}) vs {payer_path} ({payer_value}) => {match_status}")
+        comparison_results.append((legacy_path, payer_path, legacy_value, payer_value, match_status))
+    
+    return comparison_results
