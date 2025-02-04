@@ -1,0 +1,132 @@
+import json
+import os
+import pandas as pd
+from openpyxl import Workbook
+
+def extract_value(data, keys, trim_prefix=None, sheet_name=None, column_name=None, original_value=None):
+    """Extracts a value from a nested JSON object using a list of keys.
+    Handles array notation dynamically and logs which sheet and column were used.
+    """
+    print(f"\n🔍 Extracting value for path: {'/'.join(keys)}")
+    if sheet_name and column_name and original_value:
+        print(f"📄 Using mapping from sheet: {sheet_name}, column: {column_name}, original value: {original_value}")
+
+    for key in keys:
+        if isinstance(data, list):
+            # Handle array notation: [*] -> extract all, or numbered index -> extract specific item
+            if key == "[*]":
+                return [extract_value(item, keys[keys.index(key) + 1:], trim_prefix) for item in data]
+            elif key.isdigit():  # If key is a number, treat it as an index
+                index = int(key)
+                if 0 <= index < len(data):
+                    data = data[index]
+                else:
+                    print(f"⚠️ Warning: Index {index} out of range.")
+                    return None
+            else:
+                print(f"⚠️ Warning: Unexpected list key '{key}' for array.")
+                return None
+        elif isinstance(data, dict) and key in data:
+            data = data[key]  # Move deeper into the JSON structure
+        else:
+            print(f"⚠️ Warning: Key '{key}' not found in JSON structure.")
+            return None  # Return None if the key doesn't exist
+
+    if isinstance(data, str) and trim_prefix:
+        print(f"✂️ Trimming first {trim_prefix} characters from: {data}")
+        data = data[trim_prefix:]  # Remove first N characters
+
+    print(f"✅ Extracted Value: {data}")
+    return data  # Return final extracted value
+
+def find_matching_legacy_record(payer_value, legacy_data, legacy_path):
+    """Searches for a matching payer value in the Legacy JSON using a given path."""
+    print(f"\n🔍 Searching for Payer Value '{payer_value}' in Legacy JSON at path: {legacy_path}")
+
+    # Extract the list of claims
+    claims_list = extract_value(legacy_data, legacy_path.split('/'))
+
+    if not claims_list or not isinstance(claims_list, list):
+        print("⚠️ Warning: No claims found in Legacy JSON or invalid structure.")
+        return None
+
+    # Iterate through each claim and check for a match
+    for claim in claims_list:
+        legacy_claim_number = extract_value(claim, ["claimInfoCodes", "claimNumber"])
+        if legacy_claim_number == payer_value:
+            print(f"✅ Match Found in Legacy JSON: {claim}")
+            return claim  # Return the full matching claim record
+
+    print("❌ No Match Found in Legacy JSON.")
+    return None  # Return None if no match is found
+
+def compare_claim_data(matching_claim, payer_data, mapping):
+    """Compares data fields between a matched legacy claim and payer claim based on mapping."""
+    print("\n🔍 Starting claim data comparison...")
+    comparison_results = []
+
+    for legacy_path, payer_path in mapping.items():
+        legacy_value = extract_value(matching_claim, legacy_path.split('/'))
+        payer_value = extract_value(payer_data, payer_path.split('/'))
+        match_status = "Matched" if legacy_value == payer_value else "Not Matched"
+        
+        print(f"📌 Comparing: {legacy_path} ({legacy_value}) vs {payer_path} ({payer_value}) => {match_status}")
+        comparison_results.append((legacy_path, payer_path, legacy_value, payer_value, match_status))
+    
+    return comparison_results
+
+def read_mapping(file_path):
+    """Reads the mapping from an Excel file and returns it as a dictionary."""
+    df = pd.read_excel(file_path, sheet_name="Sheet1")
+    mapping = dict(zip(df["Legacy JSON Pointer"], df["Payer JSON Pointer"]))
+    print("✅ Mapping loaded successfully.")
+    return mapping
+
+def generate_report(output_path, comparison_results):
+    """Generates an Excel report from the comparison results."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Comparison Results"
+    ws.append(["Legacy Path", "Payer Path", "Legacy Value", "Payer Value", "Match Status"])
+
+    for row in comparison_results:
+        ws.append(row)
+
+    wb.save(output_path)
+    print(f"✅ Report generated successfully: {output_path}")
+
+def process_claims(legacy_file, payer_file, mapping_file, output_excel):
+    """Processes claims by extracting and comparing values from JSON files."""
+    print("\n🚀 Starting claim processing...")
+
+    # Load JSON files
+    with open(legacy_file, 'r', encoding='utf-8') as lf, open(payer_file, 'r', encoding='utf-8') as pf:
+        legacy_json = json.load(lf)
+        payer_json = json.load(pf)
+
+    # Read mapping document
+    mapping = read_mapping(mapping_file)
+
+    # Extract and trim the payer claim number
+    payer_claim_number = extract_value(payer_json, "data/claimIdentifiers/payerClaimControlNumber".split('/'), trim_prefix=3)
+
+    # Define the path to search in the legacy JSON
+    legacy_search_path = "searchResult/searchOutput/claims"
+
+    # Search for a matching record in the legacy JSON
+    matching_claim = find_matching_legacy_record(payer_claim_number, legacy_json, legacy_search_path)
+
+    if matching_claim:
+        print("\n✅ Final Matching Claim Found, Proceeding with Data Comparison...")
+        comparison_results = compare_claim_data(matching_claim, payer_json, mapping)
+        generate_report(output_excel, comparison_results)
+    else:
+        print("\n❌ No matching claim found in Legacy JSON. Exiting.")
+
+if __name__ == "__main__":
+    legacy_response_path = "path/to/your/Legacy.json"   # Provide actual path
+    payer_response_path = "path/to/your/Payer.json"     # Provide actual path
+    mapping_file_path = "path/to/your/mapping.xlsx"     # Provide actual path
+    output_excel_path = "path/to/your/output.xlsx"      # Provide actual path
+    
+    process_claims(legacy_response_path, payer_response_path, mapping_file_path, output_excel_path)
