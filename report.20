@@ -1,0 +1,95 @@
+import os
+import json
+import logging
+import pandas as pd
+from openpyxl import Workbook
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Get the directory where the script is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# File paths
+BULK_RESPONSES_DIR = os.path.join(BASE_DIR, "target", "jsonresponses", "bulkresponses")
+SINGLE_RESPONSES_DIR = os.path.join(BASE_DIR, "target", "jsonresponses", "singleresponses")
+MAPPING_FILE_PATH = os.path.join(BASE_DIR, "config", "mapping.xlsx")
+OUTPUT_EXCEL_PATH = os.path.join(BASE_DIR, "target", "output", "output.xlsx")
+OUTPUT_JSON_PATH = os.path.join(BASE_DIR, "target", "output", "output_matched.json")
+
+def read_mapping(file_path):
+    """ Reads an Excel file (Sheet Two) and returns a mapping dictionary {old_path: new_path} """
+    mapping = {}
+    try:
+        df = pd.read_excel(file_path, sheet_name=1)  # Reads the second sheet (0-based index)
+        for _, row in df.iterrows():
+            if pd.notna(row.iloc[0]) and pd.notna(row.iloc[1]):  # Ensure both columns have values
+                mapping[row.iloc[0]] = row.iloc[1]
+    except Exception as e:
+        logger.error(f"Error reading mapping file: {e}")
+    return mapping
+
+def process_paths(old_json, new_json, old_path, new_path):
+    """ Retrieves values from JSON using mapped paths and compares them. """
+    old_value = old_json.get(old_path, "null")
+    new_value = new_json.get(new_path, "null")
+
+    match_status = "Matched" if old_value == new_value else "Not Matched"
+    if old_value and new_value and (old_value.lower() in new_value.lower() or new_value.lower() in old_value.lower()):
+        match_status = "Partial Match"
+
+    return old_path, new_path, old_value, new_value, match_status
+
+def main():
+    try:
+        mapping = read_mapping(MAPPING_FILE_PATH)
+        workbook = Workbook()
+        consolidated_sheet = workbook.active
+        consolidated_sheet.title = "Consolidated"
+        consolidated_sheet.append(["Record Name", "Coverage Percentage", "Matched Values"])
+
+        aggregated_json_results = {}
+
+        if os.path.exists(BULK_RESPONSES_DIR) and os.path.exists(SINGLE_RESPONSES_DIR):
+            bulk_files = [f for f in os.listdir(BULK_RESPONSES_DIR) if f.endswith("_legacysummary.json")]
+            single_files = [f for f in os.listdir(SINGLE_RESPONSES_DIR) if f.endswith("_ppclaims.json")]
+
+            for bulk_file in bulk_files:
+                bulk_file_path = os.path.join(BULK_RESPONSES_DIR, bulk_file)
+                member_id, claim_number, _ = bulk_file.split("_")
+                
+                matching_single_file = f"{member_id}_{claim_number}_ppclaims.json"
+                single_file_path = os.path.join(SINGLE_RESPONSES_DIR, matching_single_file)
+
+                if os.path.exists(single_file_path):
+                    with open(bulk_file_path, "r", encoding="utf-8") as f:
+                        legacy_json = json.load(f)
+                    with open(single_file_path, "r", encoding="utf-8") as f:
+                        payer_json = json.load(f)
+
+                    sheet = workbook.create_sheet(title=bulk_file[:30])  # Excel sheet names must be ≤ 31 chars
+                    sheet.append(["Old Path", "New Path", "Old Value", "New Value", "Matched/Not Matched"])
+
+                    matched_count = 0
+                    total_keys = len(mapping)
+
+                    for old_path, new_path in mapping.items():
+                        result = process_paths(legacy_json, payer_json, old_path, new_path)
+                        sheet.append(result)
+                        if result[-1] == "Matched":
+                            matched_count += 1
+
+                    coverage_percentage = (matched_count / total_keys) * 100 if total_keys > 0 else 0
+                    consolidated_sheet.append([bulk_file, f"{coverage_percentage:.2f}%", f"{matched_count}/{total_keys}"])
+                else:
+                    logger.warning(f"Skipping file '{bulk_file}' as matching single response file is missing.")
+
+        workbook.save(OUTPUT_EXCEL_PATH)
+        logger.info(f"Comparison complete. Output written to {OUTPUT_EXCEL_PATH}")
+
+    except Exception as e:
+        logger.error(f"An error occurred during comparison: {e}")
+
+if __name__ == "__main__":
+    main()
