@@ -1,0 +1,59 @@
+📜 Sheet 1: "Consolidated" (Summary of All Records)
+This sheet provides an overview of all processed records, including:
+
+Record Name → The filename of the JSON pair (bulk and single response).
+Coverage Percentage → Percentage of matched fields.
+Matched Values → Number of matches vs total comparisons.
+Record Name	Coverage Percentage	Matched Values
+916845293_43754038	85.00%	17/20
+948367410_83746512	92.50%	37/40
+981091955_56473829	78.00%	23/30
+TOTAL (Average)	85.16%	77/90
+✔️ This sheet gives a high-level summary of the validation results for all records.
+
+📄 Sheet 2, 3, ... (Individual Record Comparisons)
+Each record gets its own sheet, named after the bulk response file (trimmed to 30 characters for Excel compatibility).
+
+Each row compares one key-value pair between bulk (legacy) and single (payer) JSON files.
+
+🔍 Example: "916845293_43754038" Sheet
+Old Path (Legacy JSON)	New Path (Payer JSON)	Old Value	New Value	Matched/Not Matched
+/claimNumber	/payerClaimID	43754038	43754038	✅ Matched
+/memberID	/payerMemberID	916845293	916845293	✅ Matched
+/totalAmount	/totalPaidAmount	1500.00	1450.00	⚠️ Partial Match
+/dateOfService	/serviceDate	2024-01-10	2024-01-11	❌ Not Matched
+/status	/claimStatus	"Approved"	"Pending"	❌ Not Matched
+✔️ Each sheet provides detailed field-by-field comparisons for a single record.
+
+📂 Excel File Structure Overview
+📌 Excel file location:
+
+lua
+Copy
+Edit
+target/output/output.xlsx
+📌 Excel file contents:
+
+scss
+Copy
+Edit
+📘 Consolidated  (Summary of all records)
+📄 916845293_43754038 (Detailed validation)
+📄 948367410_83746512 (Detailed validation)
+📄 981091955_56473829 (Detailed validation)
+
+The first sheet summarizes all records (Consolidated Report).
+Each individual sheet contains a detailed comparison for a specific record.
+You can phrase your request like this:
+
+🚀 Request Example
+"I need a Python script that processes JSON files from bulkresponses and singleresponses, compares their values based on a mapping document, and generates an Excel report. The Excel file should have:
+
+A consolidated summary sheet listing all records with their match percentage and matched values.
+Separate sheets for each record, containing detailed field-by-field comparisons between bulkresponses and singleresponses."
+"The comparison should be based on an Excel mapping file, and the match status should be categorized as: ✅ Matched, ⚠️ Partial Match, or ❌ Not Matched."
+
+📝 Additional Enhancements
+You can also specify additional enhancements such as: ✅ Color formatting → Green for Matched, Yellow for Partial Match, Red for Not Matched.
+✅ Sorting or filtering options in the Excel report.
+✅ Logging improvements to track missing files or errors.
